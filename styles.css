@@ -67,3 +67,40 @@ h1,h2,h3,p{margin:0}.app-shell{min-height:100vh;display:flex;flex-direction:colu
 
 /* Only one selection square per format: no duplicated shape glyphs. */
 .choice{gap:11px}.choice-check{width:23px;height:23px;flex-basis:23px}.time-rating .stars{font-size:14px;letter-spacing:-1px}
+
+/* v7: higher-contrast Kanban, clear priority colors, compact accordions */
+:root{--ink:#171327;--muted:#514764;--line:#d2c4df;--mauve:#783aa1;--mauve-deep:#572578;--mauve-soft:#eee3f7;--mauve-pale:#f8f3fc;--shadow:0 5px 20px rgba(68,31,89,.1)}
+.dashboard{background:linear-gradient(150deg,#fff 0%,#fff 25%,#fbf5ff 100%)}
+.dashboard-head h1,.client-heading h3{color:#201329}
+.stat-box{border:1.5px solid #d0b8e3;box-shadow:0 2px 7px #4c237515;background:#fff}
+.stat-box.active{background:#eedaf8;border-color:#9f55c6}
+.stat-box strong{color:#67248d}.stat-urgent strong{color:#ce332e}.stat-soon strong{color:#c87508}
+.filter-tab{color:#493554}.filter-tab.active{background:#e9d5f8;border-color:#bd8fdd;color:#5b167f}
+.client-board{background:#e9def3;border:1.5px solid #c7addb;border-top:4px solid #8245ac;box-shadow:0 7px 19px #47206417;border-radius:13px}
+.client-heading h3{font-size:16px}.client-heading span{color:#5c4e69;font-weight:600}
+.client-avatar{background:#713797;color:#fff}
+.task-item{border:1px solid #d1bddf;box-shadow:0 2px 5px #3b18591f}
+.task-item:hover{border-color:#9f63bb;box-shadow:0 3px 11px #67248d26}
+.task-compact{padding:11px 10px 11px 8px;border-right:4px solid #8b72a2;align-items:center}
+.task-compact.urgency-normal{border-right-color:#3b8ca5}
+.task-compact.urgency-urgent{border-right-color:#f39d0c}
+.task-compact.urgency-critical{border-right-color:#db324c}
+.mini-title{font-size:13px;color:#21162b}
+.mini-date{color:#584b61}
+.mini-tags{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.urgency-pill{font-size:10px;border-radius:6px;padding:3px 7px;line-height:1.5;font-weight:800;white-space:nowrap}
+.urgency-pill.normal{background:#e3f3f9;color:#176881}
+.urgency-pill.urgent{background:#fff0cf;color:#935700}
+.urgency-pill.critical{background:#ffe4e8;color:#bb1835}
+.urgency-pill.overdue{background:#fce4e8;color:#b71734}
+.urgency-pill.soon{background:#fff4cf;color:#936100}
+.check-task{border-color:#8963a2}.check-task.checked{background:#286bb8;border-color:#286bb8}
+.time-rating.grade-5{color:#067943}.time-rating.grade-4{color:#4f9b16}.time-rating.grade-3{color:#859d06}.time-rating.grade-2{color:#c68d00}.time-rating.grade-1{color:#db9b00}
+.rating-guide{background:#f2e8fa;color:#4c2a5d;border-color:#cfabdf}
+.task-expand{background:#fff;border-color:#d8c8e6}
+.notes-section{background:#f5ecfb;padding:10px!important;border-radius:9px;margin-top:8px}
+.notes-section label{display:block;font-weight:800;color:#50206e!important;font-size:12px!important}
+.notes-section textarea{display:block;width:100%;min-height:92px;padding:10px;border:1.5px solid #bea0d4;border-radius:8px;font:inherit;font-size:12px;line-height:1.6;resize:vertical;color:#22162b;background:white;margin:8px 0}
+.save-notes-btn{background:#6e2e96;color:white;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:11px}
+.save-notes-btn:hover{background:#50206e}
+@media(max-width:700px){.client-board{padding:9px}.task-compact{gap:6px}.urgency-pill{font-size:9px}}
