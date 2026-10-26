@@ -73,25 +73,29 @@
       return pb-pa;
     });
   }
-  function statusChip(t){if(isOverdue(t))return '<span class="task-flag overdue">● متأخر</span>';if(isUrgent(t))return '<span class="task-flag urgent">⚡ مستعجل</span>';if(dueSoon(t))return '<span class="task-flag soon">◷ قريب</span>';return '';}
+  function statusChip(t){if(isOverdue(t))return '<span class="task-flag overdue">متأخر</span>';if(dueSoon(t))return '<span class="task-flag soon">قريب</span>';return '';}
   // يقاس الزمن من لحظة إضافة الطلب حتى الضغط على علامة إنجازه. قبل الإنجاز المؤشر مؤقت.
+  // لا تعرض تقييماً نهائياً قبل إتمام المهمة؛ نقارن يوم الإضافة بالتسليم الفعلي والموعد المحدد.
   function elapsedRating(t){
-    const start=Date.parse(t.created_at||'');
-    const finished=t.status==='done'&&t.completed_at;
-    const end=finished?Date.parse(t.completed_at):Date.now();
-    const hours=Number.isFinite(start)&&Number.isFinite(end)?Math.max(0,(end-start)/3600000):0;
-    const score=hours<=24?5:hours<=48?4:hours<=96?3:hours<=168?2:1;
-    const duration=hours<1?'أقل من ساعة':hours<24?`${Math.floor(hours)} ساعة`:`${Math.floor(hours/24)} يوم`;
-    const info=finished?`تم إنجازها بعد ${duration} من إضافتها`:`من إضافة الطلب حتى الآن: ${duration} (تقييم مؤقت)`;
-    return `<span class="time-rating grade-${score}" title="${esc(info)}" aria-label="${esc(info)}: ${score} من 5 نجوم"><span class="stars" aria-hidden="true">${'★'.repeat(score)}<span class="star-empty">${'☆'.repeat(5-score)}</span></span>${finished?'':'<span class="rating-temp">مؤقت</span>'}</span>`;
+    if(t.status!=='done'||!t.completed_at)return '<span class="time-rating unrated" title="لم تُنجز المهمة بعد" aria-label="لم تُقيّم بعد"><span class="stars" aria-hidden="true">☆☆☆☆☆</span></span>';
+    const created=Date.parse(t.created_at||'');const completed=Date.parse(t.completed_at);
+    if(!Number.isFinite(created)||!Number.isFinite(completed))return '<span class="time-rating unrated">☆☆☆☆☆</span>';
+    const days=Math.max(0,(completed-created)/86400000);
+    // إن كان الموعد متاحاً، تقاس دقة التسليم قياساً به؛ وإلا يُستخدم زمن التنفيذ.
+    let score;
+    if(t.due_date){const due=Date.parse(t.due_date+'T23:59:59');const late=(completed-due)/86400000;score=late<=0?5:late<=1?4:late<=2?3:late<=4?2:1;}
+    else score=days<=1?5:days<=2?4:days<=4?3:days<=7?2:1;
+    const label=t.due_date?`تم الإنجاز ${completed<=Date.parse(t.due_date+'T23:59:59')?'ضمن الموعد':'بعد الموعد'}`:`الإنجاز خلال ${Math.ceil(days)} يوم`;
+    return `<span class="time-rating grade-${score}" title="${esc(label)}" aria-label="${esc(label)}: ${score} من 5"><span class="stars" aria-hidden="true">${'★'.repeat(score)}<span class="star-empty">${'☆'.repeat(5-score)}</span></span></span>`;
   }
   function miniTask(t){
-    const done=t.status==='done';
-    const due=t.due_date?`◷ ${when(t.due_date)}`:'بدون موعد';
+    const done=t.status==='done';const due=t.due_date?`◷ ${when(t.due_date)}`:'';
+    const warning=t.due_date&&isOverdue(t)?'<span class="compact-flag overdue" title="متأخر">!</span>':dueSoon(t)?'<span class="compact-flag soon" title="تسليم قريب">◷</span>':'';
+    const phase=t.status==='progress'?'<span class="compact-stage" title="قيد العمل">◉</span>':'';
     return `<article class="task-item" data-task="${esc(t.id)}">
       <div class="task-compact urgency-${esc(t.urgency||'normal')} ${done?'is-done':''}">
         <button type="button" class="check-task ${done?'checked':''}" data-status="${done?'new':'done'}" data-id="${esc(t.id)}" aria-label="${done?'إعادة فتح':'تحديد مكتمل'}: ${esc(t.title)}" title="${done?'إعادة فتح المهمة':'تم الإنجاز'}">${done?'✓':''}</button>
-        <button type="button" class="mini-task-main" data-detail="${esc(t.id)}" aria-controls="task-details-${esc(t.id)}" aria-expanded="false"><span class="mini-title">${esc(t.title)}</span><span class="mini-tags">${urgencyTag(t)}${t.due_date&&isOverdue(t)?'<span class="urgency-pill overdue">● متأخر</span>':''}${dueSoon(t)?'<span class="urgency-pill soon">◷ تسليم قريب</span>':''}</span><span class="mini-date">${due} ${statusChip(t)}</span></button>
+        <button type="button" class="mini-task-main" data-detail="${esc(t.id)}" aria-controls="task-details-${esc(t.id)}" aria-expanded="false"><span class="mini-title">${esc(t.title)}</span><span class="mini-date">${urgencyTag(t)} ${warning} ${phase} ${due?`<span class="due-caption">${due}</span>`:''}</span></button>
         ${elapsedRating(t)}
         <button class="expand-chevron" type="button" data-detail="${esc(t.id)}" aria-controls="task-details-${esc(t.id)}" aria-expanded="false" aria-label="فتح تفاصيل ${esc(t.title)}">⌄</button>
       </div>
@@ -100,7 +104,7 @@
   }
   function groupCard(group){
     const pending=group.tasks.filter(t=>t.status!=='done').length;
-    return `<section class="client-board"><div class="client-heading"><div class="client-avatar">${esc(group.name.slice(0,1))}</div><div class="client-heading-copy"><h3>${esc(group.name)}</h3><span>${pending} قيد العمل · ${group.tasks.length} إجمالي</span></div></div><div class="client-task-list">${group.tasks.map(miniTask).join('')}</div></section>`;
+    return `<section class="client-board"><div class="client-heading"><div class="client-avatar">${esc(group.name.slice(0,1))}</div><div class="client-heading-copy"><h3>${esc(group.name)}</h3><span>${pending} غير منجزة · ${group.tasks.length} إجمالي</span></div></div><div class="client-task-list">${group.tasks.map(miniTask).join('')}</div></section>`;
   }
   function dashboardTemplate(){
     const pending=state.tasks.filter(t=>t.status!=='done');
@@ -108,21 +112,25 @@
     const groups=groupTasks(filteredTasks());
     return `<section class="dashboard"><div class="dashboard-head"><div><span class="eyebrow">لوحة تحكم خاصة</span><h1>مهامي <span>✳</span></h1><p>كل جهة لها قائمتها. اضغط عنوان المهمة لتظهر تفاصيلها تحتها مباشرة.</p></div><div class="dashboard-actions"><button class="plain-btn" id="refresh" type="button">↻ تحديث</button>${connected?'<button class="plain-btn" id="logout" type="button">خروج</button>':''}<a class="primary-btn" href="#request">+ طلب جديد</a></div></div>
       <div class="stats-grid">${stats.map(([label,count,key])=>`<button type="button" class="stat-box stat-${key} ${state.filter===(key==='all'?'open':key)?'active':''}" data-filter="${key==='all'?'open':key}"><span>${label}</span><strong>${count}</strong></button>`).join('')}</div>
-      <div class="rating-guide">★ <strong>تقييم سرعة الإنجاز:</strong> أخضر للأسرع، ويتدرج إلى الأصفر كلما طالت المدة من إضافة الطلب حتى الضغط على ✓. التقييم مؤقت قبل الإنجاز.</div>
+      <div class="rating-guide">☆ التقييم بالرمادي حتى الإنجاز، وبعده يُحسب من تاريخ الإضافة إلى التسليم الفعلي مقارنةً بالموعد المطلوب.</div>
       <div class="board-toolbar"><div class="filter-tabs">${[['open','المفتوحة'],['all','الكل'],['progress','قيد التنفيذ'],['done','المنجزة']].map(([key,label])=>`<button class="filter-tab ${state.filter===key?'active':''}" type="button" data-filter="${key}">${label}</button>`).join('')}</div><div class="board-inputs"><input aria-label="ابحث عن جهة أو مهمة" id="search" placeholder="⌕ ابحث عن جهة أو مهمة" value="${esc(state.search)}"><select aria-label="ترتيب المهام" id="sort"><option value="priority" ${state.sort==='priority'?'selected':''}>الأولوية أولاً</option><option value="deadline" ${state.sort==='deadline'?'selected':''}>أقرب تسليم</option><option value="newest" ${state.sort==='newest'?'selected':''}>الأحدث أولاً</option></select></div></div>
-      <div class="client-grid" id="task-list">${state.loading?'<div class="empty-state">جارٍ تحميل المهام...</div>':groups.length?groups.map(groupCard).join(''):'<div class="empty-state"><span>✳</span><h3>ما فيه مهام في هذا القسم</h3><p>كل طلب يظهر تحت اسم الجهة الموجودة في نموذج العميل.</p></div>'}</div>
+      <div class="kanban-surface"><div class="client-grid" id="task-list">${state.loading?'<div class="empty-state">جارٍ تحميل المهام...</div>':groups.length?groups.map(groupCard).join(''):'<div class="empty-state"><span>✳</span><h3>ما فيه مهام في هذا القسم</h3><p>كل طلب يظهر تحت اسم الجهة الموجودة في نموذج العميل.</p></div>'}</div></div>
     </section>`;
   }
   function detailTemplate(t){
     const formats=safeFormatList(t);const done=t.status==='done';
-    return `<div class="detail-sheet"><div class="details-meta"><span class="status-label">${esc(STATUSES[t.status]||'جديد')}</span>${statusChip(t)}<span>أُضيف: ${when(t.created_at)}</span>${done&&t.completed_at?`<span>أُنجز: ${when(t.completed_at)}</span>`:''}</div>
-      <div class="detail-section"><h3>نوع التصميم</h3><p>${esc(TYPES[t.type]||'تصميم آخر')}${formats.length?' · '+formats.map(esc).join(' + '):''}</p></div>
-      <div class="detail-section"><h3>تفاصيل الطلب</h3><p class="preserve">${esc(t.details)}</p></div>
+    return `<div class="detail-sheet">
+      <div class="details-meta"><span>${esc(STATUSES[t.status]||'جديد')}</span><span>أُضيف ${when(t.created_at)}</span>${done&&t.completed_at?`<span>أُنجز ${when(t.completed_at)}</span>`:''}</div>
+      <div class="detail-section"><h3>النوع</h3><p>${esc(TYPES[t.type]||'تصميم آخر')}${formats.length?' · '+formats.map(esc).join(' + '):''}</p></div>
+      <div class="detail-section"><h3>التفاصيل</h3><p class="preserve">${esc(t.details)}</p></div>
       ${t.contact?`<div class="detail-section"><h3>التواصل</h3><p>${esc(t.contact)}</p></div>`:''}
-      <div class="detail-section"><h3>المرفق المرجعي</h3><div data-attachment-for="${esc(t.id)}">${t.reference_path?'<span class="muted">جارٍ تجهيز المرفق...</span>':'<span class="muted">لم يُرفق ملف</span>'}</div></div>
-      <div class="detail-section notes-section"><label for="notes-${esc(t.id)}">📝 ملاحظاتي الخاصة (لا يراها العميل)</label><textarea id="notes-${esc(t.id)}" data-notes-input="${esc(t.id)}" placeholder="مثال: الطلب ناقصه صور عالية الجودة، ننتظر العميل..." maxlength="5000">${esc(t.internal_notes||'')}</textarea><button class="save-notes-btn" type="button" data-save-notes="${esc(t.id)}">حفظ الملاحظات</button></div>
-      <div class="detail-section priority-section"><label for="priority-${esc(t.id)}">أولوية المهمة</label><select id="priority-${esc(t.id)}" data-priority-id="${esc(t.id)}">${Object.entries(PRIORITIES).map(([k,v])=>`<option value="${k}" ${t.priority===k?'selected':''}>${v}</option>`).join('')}</select></div>
-      <div class="dialog-actions">${t.status==='new'?`<button type="button" class="plain-btn" data-status="progress" data-id="${esc(t.id)}">◷ بدء العمل</button>`:''}<button type="button" class="${done?'plain-btn':'primary-btn'}" data-status="${done?'new':'done'}" data-id="${esc(t.id)}">${done?'↺ إعادة فتح':'✓ تم الإنجاز'}</button><button type="button" class="danger-btn" data-delete="${esc(t.id)}">حذف المهمة</button></div>
+      ${t.reference_path?`<div class="detail-section"><h3>المرفق</h3><div data-attachment-for="${esc(t.id)}"><span class="muted">جارٍ تجهيز المرفق...</span></div></div>`:''}
+      <div class="dialog-actions icon-actions">
+        ${t.status==='new'?`<button type="button" class="icon-action" data-status="progress" data-id="${esc(t.id)}" title="بدء العمل" aria-label="بدء العمل">▶</button>`:''}
+        <button type="button" class="icon-action complete-action" data-status="${done?'new':'done'}" data-id="${esc(t.id)}" title="${done?'إعادة فتح':'تم الإنجاز'}" aria-label="${done?'إعادة فتح':'تم الإنجاز'}">${done?'↺':'✓'}</button>
+        <button type="button" class="icon-action delete-action" data-delete="${esc(t.id)}" title="حذف المهمة" aria-label="حذف المهمة">▤</button>
+      </div>
+      <div class="detail-section notes-section"><label for="notes-${esc(t.id)}">ملاحظاتي الخاصة <small>(لا يراها العميل)</small></label><textarea id="notes-${esc(t.id)}" data-notes-input="${esc(t.id)}" placeholder="اكتب الملاحظات أو سبب نقص الطلب..." maxlength="5000">${esc(t.internal_notes||'')}</textarea><button class="save-notes-btn" type="button" data-save-notes="${esc(t.id)}" title="حفظ الملاحظات" aria-label="حفظ الملاحظات">✓ حفظ</button></div>
     </div>`;
   }
 

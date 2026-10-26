@@ -104,3 +104,42 @@ h1,h2,h3,p{margin:0}.app-shell{min-height:100vh;display:flex;flex-direction:colu
 .save-notes-btn{background:#6e2e96;color:white;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:11px}
 .save-notes-btn:hover{background:#50206e}
 @media(max-width:700px){.client-board{padding:9px}.task-compact{gap:6px}.urgency-pill{font-size:9px}}
+
+/* V8 | Trello-scale clarity: dark board only, pure white cards, restrained typography */
+:root{--ink:#20182a;--muted:#53475f;--line:#d7d0df;--mauve-deep:#482757}
+body{background:#fff;color:#211829;font-weight:500}
+.dashboard{background:#fff;padding:28px 0 25px}
+.dashboard-head h1{font-size:32px;font-weight:800}.dashboard-head p{color:#5b5264}
+.stats-grid{margin:16px 0 12px}.stat-box{background:#fff;border-color:#d9cfdf;border-width:1px;box-shadow:none}.stat-box span{color:#4d4259;font-weight:700}
+.rating-guide{font-size:11px;padding:6px 10px;background:#fff;border-color:#ded6e5;color:#55465f}
+.board-toolbar{margin:12px 0}
+.kanban-surface{background:#482757;border-radius:17px;padding:17px;min-height:340px;box-shadow:0 5px 14px rgba(49,23,69,.09)}
+.client-grid{display:flex;gap:13px;align-items:flex-start;overflow-x:auto;padding:2px 2px 13px;scrollbar-color:#aa86c0 transparent;min-height:300px}
+.client-board{flex:0 0 274px;width:274px;background:#eeeef1;border:0;border-top:0;padding:10px;border-radius:13px;box-shadow:0 2px 4px rgba(18,12,26,.22)}
+.client-avatar{height:29px;flex-basis:29px;background:#684082;border-radius:8px;font-size:13px}
+.client-heading{padding:2px 3px 9px;gap:7px}
+.client-heading h3{font-size:14px;font-weight:800}.client-heading span{font-size:10px;color:#494153;font-weight:600}
+.client-task-list{gap:7px}.task-item{background:#fff!important;border:1px solid #ddd8e2;border-radius:9px;box-shadow:0 1px 2px rgba(24,16,38,.09)}
+.task-compact{padding:9px 7px 9px 8px;min-height:49px;border-right-width:3px;gap:6px;background:#fff;align-items:center}
+.task-compact.urgency-normal{border-right-color:#2e86a0}.task-compact.urgency-urgent{border-right-color:#e89118}.task-compact.urgency-critical{border-right-color:#c62443}
+.check-task{width:18px;height:18px;flex:0 0 18px;border-radius:5px;margin:0;border-color:#9c8aab}
+.mini-task-main{gap:3px;align-self:center}.mini-title{color:#251b2c;font-size:12.5px;font-weight:700;line-height:1.4}
+.mini-date{display:flex;gap:5px;align-items:center;flex-wrap:wrap;font-size:10px;color:#5f5865}
+.urgency-pill{font-size:10px!important;line-height:1.2!important;padding:2px 5px!important}
+.urgency-pill.normal{background:#edf6f9;color:#246b80}.urgency-pill.urgent{background:#fff1d7;color:#965a00}.urgency-pill.critical{background:#ffe6eb;color:#af1435}
+.compact-flag{font-size:11px;font-weight:800;border-radius:4px;padding:1px 3px}.compact-flag.soon{color:#9a6100;background:#fff1d7}.compact-flag.overdue{color:#b4203c;background:#ffe7ec}
+.compact-stage{font-size:10px;color:#6a3893;background:#efe6f8;border-radius:5px;padding:1px 5px}
+.due-caption{white-space:nowrap;color:#615668;font-size:10px}
+.time-rating{min-width:47px;align-items:center;justify-content:center}.time-rating .stars{font-size:12px;letter-spacing:-1px}.time-rating.unrated{color:#95909b}.star-empty{color:#bcb6c0}
+.expand-chevron{min-width:12px;font-size:16px;color:#51415c}
+.task-expand{padding:9px 9px 10px;background:#fff}
+.detail-sheet .details-meta{font-size:10px;color:#62596a;margin:0 0 5px}
+.detail-sheet .detail-section{padding:7px 0}.detail-sheet .detail-section h3{color:#4b3d57;font-size:10.5px}.detail-sheet .detail-section p{font-size:11.5px;color:#292233;line-height:1.6;font-weight:500}
+.icon-actions{display:flex;justify-content:flex-end;gap:7px;padding:6px 0 8px;margin:0!important}
+.icon-action{width:31px;height:30px;display:grid;place-items:center;background:#f3f0f7;border:1px solid #ded6e5;border-radius:8px;color:#5d3777;font-weight:800;font-size:15px;cursor:pointer}
+.icon-action:hover{background:#e7dff0}.complete-action{background:#e8f4ed;color:#116b3e;border-color:#c8e4d3}.delete-action{margin-inline-start:auto;color:#b23d50;background:#fff1f2;border-color:#f1dadd}
+.notes-section{background:#f8f5fa!important;margin-top:8px!important;padding:9px!important;border:1px solid #eee7f2!important;border-radius:8px}
+.notes-section label{font-size:11px!important}.notes-section label small{color:#776a81;font-weight:500;font-size:10px}
+.notes-section textarea{min-height:66px;margin:6px 0;border:1px solid #d3c6de;border-radius:7px;padding:8px;font-size:11px}
+.save-notes-btn{font-size:11px;padding:6px 10px;border-radius:7px}
+@media(max-width:740px){.kanban-surface{padding:10px;border-radius:12px;min-height:280px}.client-grid{gap:10px;min-height:265px}.client-board{flex-basis:262px;width:262px}.dashboard{padding-top:20px}}
