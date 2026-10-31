@@ -285,3 +285,11 @@ html,body{max-width:100%;overflow-x:hidden}
 
 /* V9.5: unmistakable leaf icon for normal urgency, not a status dot */
 .urgency-symbol.normal svg{display:block;width:23px;height:23px;stroke:#15834b;stroke-width:2.3;fill:rgba(34,197,94,.12);flex-shrink:0}
+
+/* V9.7: deliberate inset on both sides of horizontal task area */
+.v9-dashboard .kanban-surface{padding:34px 36px 26px!important;}
+.v9-dashboard .kanban-surface #task-list.client-grid{padding:6px 20px 24px!important;scroll-padding-inline:20px;}
+@media(max-width:700px){
+  .v9-dashboard .kanban-surface{padding:18px 16px 18px!important;}
+  .v9-dashboard .kanban-surface #task-list.client-grid{padding:6px 12px 20px!important;scroll-padding-inline:12px;}
+}

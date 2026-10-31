@@ -12,7 +12,7 @@
   const STATUSES = { new:'جديد', progress:'قيد التنفيذ', done:'مكتمل' };
   const PRIORITIES = { low:'منخفض', medium:'متوسط', high:'عالي' };
   const FORMAT_NAMES = { post:'بوست', story:'ستوري' };
-  const state = { authorized:!hasConfig, filter:'open', sort:'priority', search:'', tasks:[], loading:false, sending:false, sent:false, uploadWarning:false, fileUrl:null, expandedId:null, boardMode:localStorage.getItem('talabati-board-mode')==='white'?'white':'dark', reportOpen:false, reportPeriod:'week', reportFrom:'', reportTo:'', fontScale:Math.min(1.55,Math.max(.85,Number(localStorage.getItem('talabati-font-scale'))||1)), widths:(()=>{try{return JSON.parse(localStorage.getItem('talabati-board-widths')||'{}')||{}}catch{return {}}})() };
+  const state = { authorized:!hasConfig, filter:'open', sort:'priority', search:'', tasks:[], loading:false, sending:false, sent:false, uploadWarning:false, fileUrl:null, expandedId:null, boardMode:localStorage.getItem('talabati-board-mode')==='white'?'white':'dark', reportOpen:false, reportPeriod:'week', reportFrom:'', reportTo:'', fontScale:(()=>{const value=Number(localStorage.getItem('talabati-font-scale'));return Number.isFinite(value)&&value>0?value:1})(), widths:(()=>{try{return JSON.parse(localStorage.getItem('talabati-board-widths')||'{}')||{}}catch{return {}}})() };
 
   function todayISO(offset=0) {
     const d = new Date(); d.setDate(d.getDate()+offset);
@@ -164,7 +164,7 @@
     document.getElementById('sort')?.addEventListener('change',e=>{state.sort=e.target.value;render();});
     document.getElementById('search')?.addEventListener('input',e=>{state.search=e.target.value;renderTasksOnly();});
     document.getElementById('refresh')?.addEventListener('click',loadTasks);
-    [['font-plus',.1],['font-minus',-.1],['font-reset',0]].forEach(([id,delta])=>document.getElementById(id)?.addEventListener('click',()=>{state.fontScale=delta===0?1:Math.round(Math.max(.85,Math.min(1.55,state.fontScale+delta))*100)/100;localStorage.setItem('talabati-font-scale',String(state.fontScale));document.querySelector('.v9-dashboard')?.style.setProperty('--task-font-scale',state.fontScale);document.getElementById('font-plus')?.setAttribute('title','تكبير الخط · '+Math.round(state.fontScale*100)+'%');}));
+    [['font-plus',.1],['font-minus',-.1],['font-reset',0]].forEach(([id,delta])=>document.getElementById(id)?.addEventListener('click',()=>{state.fontScale=delta===0?1:(delta>0?state.fontScale*1.12:state.fontScale/1.12);localStorage.setItem('talabati-font-scale',String(state.fontScale));document.querySelector('.v9-dashboard')?.style.setProperty('--task-font-scale',state.fontScale);document.querySelectorAll('.font-controls button').forEach(button=>{button.title=(button.id==='font-plus'?'تكبير':button.id==='font-minus'?'تصغير':'إعادة الحجم')+' · '+Math.round(state.fontScale*100)+'%';});}));
     document.getElementById('board-mode')?.addEventListener('click',()=>{state.boardMode=state.boardMode==='dark'?'white':'dark';localStorage.setItem('talabati-board-mode',state.boardMode);render();});
     document.getElementById('toggle-report')?.addEventListener('click',()=>{state.reportOpen=!state.reportOpen;render();});
     document.getElementById('close-report')?.addEventListener('click',()=>{state.reportOpen=false;render();});
