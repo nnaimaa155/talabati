@@ -12,7 +12,7 @@
   const STATUSES = { new:'جديد', progress:'قيد التنفيذ', done:'مكتمل' };
   const PRIORITIES = { low:'منخفض', medium:'متوسط', high:'عالي' };
   const FORMAT_NAMES = { post:'بوست', story:'ستوري' };
-  const state = { authorized:!hasConfig, filter:'open', sort:'priority', search:'', tasks:[], loading:false, sending:false, sent:false, uploadWarning:false, fileUrl:null, expandedId:null };
+  const state = { authorized:!hasConfig, filter:'open', sort:'priority', search:'', tasks:[], loading:false, sending:false, sent:false, uploadWarning:false, fileUrl:null, expandedId:null, boardMode:localStorage.getItem('talabati-board-mode')==='white'?'white':'dark', reportOpen:false, reportPeriod:'week', reportFrom:'', reportTo:'', widths:JSON.parse(localStorage.getItem('talabati-board-widths')||'{}') };
 
   function todayISO(offset=0) {
     const d = new Date(); d.setDate(d.getDate()+offset);
@@ -32,8 +32,8 @@
   function saveDemo(){localStorage.setItem(DEMO_KEY,JSON.stringify(state.tasks));}
   function openFileDB(){return new Promise((resolve,reject)=>{if(!window.indexedDB){reject(new Error('IndexedDB unsupported'));return;}const req=indexedDB.open('design-desk-attachments-v2',1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('files'))req.result.createObjectStore('files');};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
   async function fileStore(operation,key,file){const idb=await openFileDB();try{return await new Promise((resolve,reject)=>{const t=idb.transaction('files',operation==='read'?'readonly':'readwrite');const store=t.objectStore('files');const req=operation==='write'?store.put(file,key):operation==='delete'?store.delete(key):store.get(key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}finally{idb.close();}}
-  function isUrgent(t){return t.status!=='done'&&['urgent','critical'].includes(t.urgency);}
-  function urgencyTag(t){const v=t.urgency==='critical'?['critical','🚩 بالغ الأهمية']:t.urgency==='urgent'?['urgent','⚡ مستعجل']:['normal','● عادي'];return `<span class="urgency-pill ${v[0]}">${v[1]}</span>`;}
+  function isUrgent(t){return t.status!=='done'&&t.urgency==='urgent';}
+  function urgencyTag(t){const v=t.urgency==='critical'?['critical','🚩','بالغ الأهمية']:t.urgency==='urgent'?['urgent','⚡','مستعجل']:['normal','●','عادي'];return `<span class="urgency-symbol ${v[0]}" title="${v[2]}" aria-label="${v[2]}">${v[1]}</span>`;}
   function isOverdue(t){return t.status!=='done'&&Boolean(t.due_date)&&t.due_date<todayISO();}
   function dueSoon(t){return t.status!=='done'&&Boolean(t.due_date)&&t.due_date>=todayISO()&&t.due_date<=todayISO(2);}
   function priorityWeight(t){return (isOverdue(t)?5:0)+(t.urgency==='critical'?8:isUrgent(t)?4:0)+(dueSoon(t)?3:0)+({high:2,medium:1,low:0}[t.priority]??1);}
@@ -59,7 +59,7 @@
   </section>`;}
   function successTemplate(){return `<section class="success-panel panel"><div class="success-ring">✓</div><h1>تم استلام طلبك</h1><p>وصل الطلب إلى القائمة بنجاح.${state.uploadWarning?' لكن تعذر حفظ المرفق؛ أرسله للمصمم بطريقة أخرى.':''}</p><button class="primary-btn" id="new-request">إرسال طلب آخر</button></section>`;}
   function loginTemplate(){return `<section class="login-panel panel"><span class="eyebrow">خاصة بالمصمم</span><h1>الدخول للوحة المهام</h1><p>سجل دخولك عشان تشوف طلبات الجهات.</p><form id="login-form"><div class="field"><label for="email">البريد الإلكتروني</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label for="password">كلمة المرور</label><input id="password" type="password" minlength="6" autocomplete="current-password" required></div><button class="primary-btn" id="login-btn" type="submit">دخول</button></form></section>`;}
-  function filteredTasks(){const q=state.search.trim().toLocaleLowerCase();return state.tasks.filter(t=>state.filter==='all'||(state.filter==='open'?t.status!=='done':state.filter==='urgent'?isUrgent(t):state.filter==='soon'?isOverdue(t)||dueSoon(t):t.status===state.filter)).filter(t=>!q||[t.client_name,t.title,t.details,TYPES[t.type]].some(x=>String(x||'').toLocaleLowerCase().includes(q))).sort((a,b)=>{if(state.sort==='priority'){const p=priorityWeight(b)-priorityWeight(a);if(p)return p;}if(state.sort==='deadline'){const delta=(a.due_date||'9999').localeCompare(b.due_date||'9999');if(delta)return delta;}return new Date(b.created_at)-new Date(a.created_at);});}
+  function filteredTasks(){const q=state.search.trim().toLocaleLowerCase();return state.tasks.filter(t=>state.filter==='all'||(state.filter==='open'?t.status!=='done':state.filter==='urgent'?isUrgent(t):state.filter==='critical'?t.status!=='done'&&t.urgency==='critical':state.filter==='soon'?isOverdue(t)||dueSoon(t):t.status===state.filter)).filter(t=>!q||[t.client_name,t.title,t.details,TYPES[t.type]].some(x=>String(x||'').toLocaleLowerCase().includes(q))).sort((a,b)=>{if(state.sort==='priority'){const p=priorityWeight(b)-priorityWeight(a);if(p)return p;}if(state.sort==='deadline'){const delta=(a.due_date||'9999').localeCompare(b.due_date||'9999');if(delta)return delta;}return new Date(b.created_at)-new Date(a.created_at);});}
   function groupTasks(tasks){
     const groups=new Map();
     for(const task of tasks){
@@ -74,25 +74,33 @@
     });
   }
   function statusChip(t){if(isOverdue(t))return '<span class="task-flag overdue">متأخر</span>';if(dueSoon(t))return '<span class="task-flag soon">قريب</span>';return '';}
+  function workDays(start,end){
+    if(!start||!end)return 0;
+    const a=new Date(start),b=new Date(end); if(!Number.isFinite(+a)||!Number.isFinite(+b)||b<a)return 0;
+    let count=0; const d=new Date(a.getFullYear(),a.getMonth(),a.getDate()+1); const last=new Date(b.getFullYear(),b.getMonth(),b.getDate());
+    for(;d<=last;d.setDate(d.getDate()+1)){if(d.getDay()!==5)count++;}
+    return count;
+  }
+  function svgIcon(kind){const shapes={play:'<circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/>',trash:'<path d="M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13M10 11v6m4-6v6"/>',check:'<path d="M5 12l4 4L19 6"/>',back:'<path d="M4 11a8 8 0 1 1 2 6M4 5v6h6"/>',print:'<path d="M6 9V3h12v6M6 18H4v-8h16v8h-2M6 15h12v6H6z"/>',report:'<path d="M4 20V5h16v15M8 16v-5m4 5V8m4 8v-3"/>',moon:'<path d="M20 15A8 8 0 0 1 9 4a8 8 0 1 0 11 11Z"/>',sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.5 1.5m11.2 11.2 1.5 1.5m0-14.2-1.5 1.5M6.4 17.6l-1.5 1.5"/>'};return `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${shapes[kind]||''}</svg>`;}
   // يقاس الزمن من لحظة إضافة الطلب حتى الضغط على علامة إنجازه. قبل الإنجاز المؤشر مؤقت.
   // لا تعرض تقييماً نهائياً قبل إتمام المهمة؛ نقارن يوم الإضافة بالتسليم الفعلي والموعد المحدد.
   function elapsedRating(t){
     if(t.status!=='done'||!t.completed_at)return '<span class="time-rating unrated" title="لم تُنجز المهمة بعد" aria-label="لم تُقيّم بعد"><span class="stars" aria-hidden="true">☆☆☆☆☆</span></span>';
     const created=Date.parse(t.created_at||'');const completed=Date.parse(t.completed_at);
     if(!Number.isFinite(created)||!Number.isFinite(completed))return '<span class="time-rating unrated">☆☆☆☆☆</span>';
-    const days=Math.max(0,(completed-created)/86400000);
+    const days=workDays(t.created_at,t.completed_at);
     // إن كان الموعد متاحاً، تقاس دقة التسليم قياساً به؛ وإلا يُستخدم زمن التنفيذ.
     let score;
-    if(t.due_date){const due=Date.parse(t.due_date+'T23:59:59');const late=(completed-due)/86400000;score=late<=0?5:late<=1?4:late<=2?3:late<=4?2:1;}
+    if(t.due_date){const due=Date.parse(t.due_date+'T23:59:59');const late=completed<=due?0:workDays(t.due_date+'T00:00:00',t.completed_at);score=late<=0?5:late<=1?4:late<=2?3:late<=4?2:1;}
     else score=days<=1?5:days<=2?4:days<=4?3:days<=7?2:1;
     const label=t.due_date?`تم الإنجاز ${completed<=Date.parse(t.due_date+'T23:59:59')?'ضمن الموعد':'بعد الموعد'}`:`الإنجاز خلال ${Math.ceil(days)} يوم`;
     return `<span class="time-rating grade-${score}" title="${esc(label)}" aria-label="${esc(label)}: ${score} من 5"><span class="stars" aria-hidden="true">${'★'.repeat(score)}<span class="star-empty">${'☆'.repeat(5-score)}</span></span></span>`;
   }
   function miniTask(t){
     const done=t.status==='done';const due=t.due_date?`◷ ${when(t.due_date)}`:'';
-    const warning=t.due_date&&isOverdue(t)?'<span class="compact-flag overdue" title="متأخر">!</span>':dueSoon(t)?'<span class="compact-flag soon" title="تسليم قريب">◷</span>':'';
+    const warning=dueSoon(t)?'<span class="compact-flag soon" title="تسليم خلال يومين" aria-label="تسليم قريب">◷</span>':'';
     const phase=t.status==='progress'?'<span class="compact-stage" title="قيد العمل">◉</span>':'';
-    return `<article class="task-item" data-task="${esc(t.id)}">
+    return `<article class="task-item" draggable="true" data-task="${esc(t.id)}">
       <div class="task-compact urgency-${esc(t.urgency||'normal')} ${done?'is-done':''}">
         <button type="button" class="check-task ${done?'checked':''}" data-status="${done?'new':'done'}" data-id="${esc(t.id)}" aria-label="${done?'إعادة فتح':'تحديد مكتمل'}: ${esc(t.title)}" title="${done?'إعادة فتح المهمة':'تم الإنجاز'}">${done?'✓':''}</button>
         <button type="button" class="mini-task-main" data-detail="${esc(t.id)}" aria-controls="task-details-${esc(t.id)}" aria-expanded="false"><span class="mini-title">${esc(t.title)}</span><span class="mini-date">${urgencyTag(t)} ${warning} ${phase} ${due?`<span class="due-caption">${due}</span>`:''}</span></button>
@@ -104,19 +112,24 @@
   }
   function groupCard(group){
     const pending=group.tasks.filter(t=>t.status!=='done').length;
-    return `<section class="client-board"><div class="client-heading"><div class="client-avatar">${esc(group.name.slice(0,1))}</div><div class="client-heading-copy"><h3>${esc(group.name)}</h3><span>${pending} غير منجزة · ${group.tasks.length} إجمالي</span></div></div><div class="client-task-list">${group.tasks.map(miniTask).join('')}</div></section>`;
+    return `<section class="client-board" data-client="${esc(group.name)}" style="--column-width:${Math.min(620,Math.max(260,Number(state.widths[group.name])||320))}px"><div class="client-heading"><div class="client-avatar">${esc(group.name.slice(0,1))}</div><div class="client-heading-copy"><h3>${esc(group.name)}</h3><span>${pending} غير منجزة · ${group.tasks.length} إجمالي</span></div></div><div class="client-task-list">${group.tasks.map(miniTask).join('')}</div><div class="resize-handle" title="اسحب لتغيير عرض العمود" role="separator" aria-label="تغيير عرض عمود ${esc(group.name)}">⋮⋮</div></section>`;
   }
-  function dashboardTemplate(){
-    const pending=state.tasks.filter(t=>t.status!=='done');
-    const stats=[['الطلبات المفتوحة',pending.length,'all'],['المستعجل',pending.filter(isUrgent).length,'urgent'],['تسليم قريب أو متأخر',pending.filter(t=>dueSoon(t)||isOverdue(t)).length,'soon'],['المنجزة',state.tasks.length-pending.length,'done']];
-    const groups=groupTasks(filteredTasks());
-    return `<section class="dashboard"><div class="dashboard-head"><div><span class="eyebrow">لوحة تحكم خاصة</span><h1>مهامي <span>✳</span></h1><p>كل جهة لها قائمتها. اضغط عنوان المهمة لتظهر تفاصيلها تحتها مباشرة.</p></div><div class="dashboard-actions"><button class="plain-btn" id="refresh" type="button">↻ تحديث</button>${connected?'<button class="plain-btn" id="logout" type="button">خروج</button>':''}<a class="primary-btn" href="#request">+ طلب جديد</a></div></div>
-      <div class="stats-grid">${stats.map(([label,count,key])=>`<button type="button" class="stat-box stat-${key} ${state.filter===(key==='all'?'open':key)?'active':''}" data-filter="${key==='all'?'open':key}"><span>${label}</span><strong>${count}</strong></button>`).join('')}</div>
-      <div class="rating-guide">☆ التقييم بالرمادي حتى الإنجاز، وبعده يُحسب من تاريخ الإضافة إلى التسليم الفعلي مقارنةً بالموعد المطلوب.</div>
-      <div class="board-toolbar"><div class="filter-tabs">${[['open','المفتوحة'],['all','الكل'],['progress','قيد التنفيذ'],['done','المنجزة']].map(([key,label])=>`<button class="filter-tab ${state.filter===key?'active':''}" type="button" data-filter="${key}">${label}</button>`).join('')}</div><div class="board-inputs"><input aria-label="ابحث عن جهة أو مهمة" id="search" placeholder="⌕ ابحث عن جهة أو مهمة" value="${esc(state.search)}"><select aria-label="ترتيب المهام" id="sort"><option value="priority" ${state.sort==='priority'?'selected':''}>الأولوية أولاً</option><option value="deadline" ${state.sort==='deadline'?'selected':''}>أقرب تسليم</option><option value="newest" ${state.sort==='newest'?'selected':''}>الأحدث أولاً</option></select></div></div>
-      <div class="kanban-surface"><div class="client-grid" id="task-list">${state.loading?'<div class="empty-state">جارٍ تحميل المهام...</div>':groups.length?groups.map(groupCard).join(''):'<div class="empty-state"><span>✳</span><h3>ما فيه مهام في هذا القسم</h3><p>كل طلب يظهر تحت اسم الجهة الموجودة في نموذج العميل.</p></div>'}</div></div>
-    </section>`;
+  function circleStat(label,count,color,filter,icon,total){const ratio=total?Math.round(count/total*100):0;return `<button class="circle-stat" type="button" data-filter="${filter}" aria-label="${label}: ${count} من ${total}"><span class="donut" style="--progress:${ratio}%;--accent:${color}"><strong>${count}</strong><small>${ratio}%</small></span><span class="stat-label"><span class="stat-pict" style="color:${color}">${icon}</span>${label}</span></button>`;}
+  function reportTasks(){const now=new Date(),d=new Date(now);d.setHours(0,0,0,0);let from;
+    if(state.reportPeriod==='week'){d.setDate(d.getDate()-6);from=d;}else if(state.reportPeriod==='month'){d.setDate(d.getDate()-29);from=d;}else{from=state.reportFrom?new Date(state.reportFrom+'T00:00:00'):new Date('2000-01-01');}
+    const to=state.reportPeriod==='custom'&&state.reportTo?new Date(state.reportTo+'T23:59:59'):now;
+    return state.tasks.filter(t=>{const created=new Date(t.created_at);return created>=from&&created<=to;});
   }
+  function reportMarkup(){const tasks=reportTasks(),completed=tasks.filter(x=>x.status==='done'&&x.completed_at),durations=completed.map(x=>workDays(x.created_at,x.completed_at));const mean=durations.length?(durations.reduce((a,b)=>a+b,0)/durations.length).toFixed(1):'—';const ontime=completed.filter(t=>!t.due_date||new Date(t.completed_at)<=new Date(t.due_date+'T23:59:59')).length;const overdue=tasks.filter(isOverdue).length;
+    const clients=groupTasks(tasks).sort((a,b)=>b.tasks.length-a.tasks.length);
+    return `<section class="report-panel" id="report-panel"><div class="report-title"><div><h2>تقرير أداء طلباتي</h2><p>المهام التي أُضيفت خلال الفترة المحددة، والتقييم يستثني أيام الجمعة</p></div><button type="button" id="print-report" class="plain-btn">${svgIcon('print')} طباعة</button></div><div class="report-controls"><select id="report-period"><option value="week" ${state.reportPeriod==='week'?'selected':''}>آخر 7 أيام</option><option value="month" ${state.reportPeriod==='month'?'selected':''}>آخر 30 يومًا</option><option value="custom" ${state.reportPeriod==='custom'?'selected':''}>تاريخ مخصص</option></select>${state.reportPeriod==='custom'?`<label>من <input type="date" id="report-from" value="${esc(state.reportFrom)}"></label><label>إلى <input type="date" id="report-to" value="${esc(state.reportTo)}"></label>`:''}</div><div class="report-metrics">${[['عدد المهام',tasks.length],['المنجزة',completed.length],['نسبة الإنجاز',tasks.length?Math.round(completed.length/tasks.length*100)+'%':'0%'],['متوسط أيام العمل',mean],['أُنجزت في الموعد',completed.length?Math.round(ontime/completed.length*100)+'%':'—'],['متأخرة حاليًا',overdue]].map(([k,v])=>`<div><small>${k}</small><strong>${v}</strong></div>`).join('')}</div><h3>المهام حسب الجهة</h3><table class="report-table"><thead><tr><th>الجهة</th><th>العدد</th><th>المنجزة</th></tr></thead><tbody>${clients.map(g=>`<tr><td>${esc(g.name)}</td><td>${g.tasks.length}</td><td>${g.tasks.filter(t=>t.status==='done').length}</td></tr>`).join('')||'<tr><td colspan="3">لا توجد مهام في الفترة</td></tr>'}</tbody></table></section>`;
+  }
+  function dashboardTemplate(){const pending=state.tasks.filter(t=>t.status!=='done'),total=state.tasks.length;const groups=groupTasks(filteredTasks());return `<section class="dashboard v9-dashboard"><div class="dashboard-head"><div><span class="eyebrow">لوحة تحكم خاصة</span><h1>مهامي</h1><p>كل جهة لها قائمتها، والمهام تنفتح تحتها مباشرة.</p></div><div class="dashboard-actions"><button class="plain-btn" id="refresh" type="button">↻ تحديث</button>${connected?'<button class="plain-btn" id="logout" type="button">خروج</button>':''}<a class="primary-btn" href="#request">+ طلب جديد</a></div></div>
+    <div class="v9-stats"><div class="v9-stat-grid">${circleStat('مستعجل',pending.filter(t=>t.urgency==='urgent').length,'#e45047','urgent','⚡',total)}${circleStat('بالغ الأهمية',pending.filter(t=>t.urgency==='critical').length,'#8653ad','critical','🚩',total)}${circleStat('منجزة',state.tasks.filter(t=>t.status==='done').length,'#25a772','done','✓',total)}${circleStat('تسليم قريب',pending.filter(t=>dueSoon(t)||isOverdue(t)).length,'#e49b2b','soon','◷',total)}</div><button type="button" id="toggle-report" class="report-toggle">${svgIcon('report')} التقارير</button></div>
+    <p class="stats-hint">تسليم قريب يشمل المهام المتأخرة والمهام المستحقة خلال يومين. كل نسبة من إجمالي ${total} مهمة.</p>
+    ${state.reportOpen?reportMarkup():''}
+    <div class="board-toolbar"><div class="filter-tabs">${[['open','المفتوحة'],['all','الكل'],['progress','قيد التنفيذ'],['done','المنجزة']].map(([key,label])=>`<button class="filter-tab ${state.filter===key?'active':''}" type="button" data-filter="${key}">${label}</button>`).join('')}</div><div class="board-inputs"><button type="button" class="mode-toggle" id="board-mode" title="تغيير خلفية البورد" aria-label="تبديل خلفية البورد">${svgIcon(state.boardMode==='dark'?'sun':'moon')} ${state.boardMode==='dark'?'White':'Dark'}</button><input aria-label="بحث" id="search" placeholder="ابحث عن جهة أو مهمة" value="${esc(state.search)}"><select aria-label="ترتيب المهام" id="sort"><option value="priority" ${state.sort==='priority'?'selected':''}>الأولوية أولاً</option><option value="deadline" ${state.sort==='deadline'?'selected':''}>أقرب تسليم</option><option value="newest" ${state.sort==='newest'?'selected':''}>الأحدث أولاً</option></select></div></div>
+    <div class="kanban-surface ${state.boardMode==='white'?'board-white':'board-dark'}"><div class="client-grid" id="task-list">${state.loading?'<div class="empty-state">جارٍ التحميل...</div>':groups.length?groups.map(groupCard).join(''):'<div class="empty-state">لا توجد مهام في هذا القسم</div>'}</div></div></section>`;}
   function detailTemplate(t){
     const formats=safeFormatList(t);const done=t.status==='done';
     return `<div class="detail-sheet">
@@ -126,9 +139,9 @@
       ${t.contact?`<div class="detail-section"><h3>التواصل</h3><p>${esc(t.contact)}</p></div>`:''}
       ${t.reference_path?`<div class="detail-section"><h3>المرفق</h3><div data-attachment-for="${esc(t.id)}"><span class="muted">جارٍ تجهيز المرفق...</span></div></div>`:''}
       <div class="dialog-actions icon-actions">
-        ${t.status==='new'?`<button type="button" class="icon-action" data-status="progress" data-id="${esc(t.id)}" title="بدء العمل" aria-label="بدء العمل">▶</button>`:''}
-        <button type="button" class="icon-action complete-action" data-status="${done?'new':'done'}" data-id="${esc(t.id)}" title="${done?'إعادة فتح':'تم الإنجاز'}" aria-label="${done?'إعادة فتح':'تم الإنجاز'}">${done?'↺':'✓'}</button>
-        <button type="button" class="icon-action delete-action" data-delete="${esc(t.id)}" title="حذف المهمة" aria-label="حذف المهمة">▤</button>
+        ${t.status==='new'?`<button type="button" class="icon-action" data-status="progress" data-id="${esc(t.id)}" title="بدء العمل" aria-label="بدء العمل">${svgIcon('play')}</button>`:''}
+        <button type="button" class="icon-action complete-action" data-status="${done?'new':'done'}" data-id="${esc(t.id)}" title="${done?'إعادة فتح':'تم الإنجاز'}" aria-label="${done?'إعادة فتح':'تم الإنجاز'}">${svgIcon(done?'back':'check')}</button>
+        <button type="button" class="icon-action delete-action" data-delete="${esc(t.id)}" title="حذف المهمة" aria-label="حذف المهمة">${svgIcon('trash')}</button>
       </div>
       <div class="detail-section notes-section"><label for="notes-${esc(t.id)}">ملاحظاتي الخاصة <small>(لا يراها العميل)</small></label><textarea id="notes-${esc(t.id)}" data-notes-input="${esc(t.id)}" placeholder="اكتب الملاحظات أو سبب نقص الطلب..." maxlength="5000">${esc(t.internal_notes||'')}</textarea><button class="save-notes-btn" type="button" data-save-notes="${esc(t.id)}" title="حفظ الملاحظات" aria-label="حفظ الملاحظات">✓ حفظ</button></div>
     </div>`;
@@ -151,15 +164,27 @@
     document.getElementById('sort')?.addEventListener('change',e=>{state.sort=e.target.value;render();});
     document.getElementById('search')?.addEventListener('input',e=>{state.search=e.target.value;renderTasksOnly();});
     document.getElementById('refresh')?.addEventListener('click',loadTasks);
+    document.getElementById('board-mode')?.addEventListener('click',()=>{state.boardMode=state.boardMode==='dark'?'white':'dark';localStorage.setItem('talabati-board-mode',state.boardMode);render();});
+    document.getElementById('toggle-report')?.addEventListener('click',()=>{state.reportOpen=!state.reportOpen;render();});
+    document.getElementById('report-period')?.addEventListener('change',e=>{state.reportPeriod=e.target.value;render();});
+    document.getElementById('report-from')?.addEventListener('change',e=>{state.reportFrom=e.target.value;render();});
+    document.getElementById('report-to')?.addEventListener('change',e=>{state.reportTo=e.target.value;render();});
+    document.getElementById('print-report')?.addEventListener('click',()=>window.print());
     document.getElementById('logout')?.addEventListener('click',async()=>{await db.auth.signOut();state.authorized=false;state.tasks=[];render();});
-    bindTaskButtons();
+    bindTaskButtons();bindBoardMovement();
   }
-  function renderTasksOnly(){const list=document.getElementById('task-list');if(!list)return;const groups=groupTasks(filteredTasks());list.innerHTML=groups.length?groups.map(groupCard).join(''):'<div class="empty-state">ما لقينا نتائج للبحث</div>';bindTaskButtons();}
+  function renderTasksOnly(){const list=document.getElementById('task-list');if(!list)return;const groups=groupTasks(filteredTasks());list.innerHTML=groups.length?groups.map(groupCard).join(''):'<div class="empty-state">ما لقينا نتائج للبحث</div>';bindTaskButtons();bindBoardMovement();}
   function bindTaskButtons(root=document){root.querySelectorAll('[data-detail]').forEach(b=>b.addEventListener('click',()=>openDetail(b.dataset.detail)));
     root.querySelectorAll('[data-status]').forEach(b=>b.addEventListener('click',()=>changeStatus(b.dataset.id,b.dataset.status)));
     root.querySelectorAll('[data-delete]').forEach(b=>b.addEventListener('click',()=>removeTask(b.dataset.delete)));
     root.querySelectorAll('[data-save-notes]').forEach(b=>b.addEventListener('click',()=>saveNotes(b.dataset.saveNotes)));
     root.querySelectorAll('[data-priority-id]').forEach(b=>b.addEventListener('change',()=>changePriority(b.dataset.priorityId,b.value)));
+  }
+  function bindBoardMovement(){
+    document.querySelectorAll('.task-item[draggable]').forEach(item=>{item.addEventListener('dragstart',e=>{if(e.target.closest('button')){e.preventDefault();return;}e.dataTransfer.setData('text/plain',item.dataset.task);e.dataTransfer.effectAllowed='move';item.classList.add('dragging');});item.addEventListener('dragend',()=>item.classList.remove('dragging'));});
+    document.querySelectorAll('.client-board').forEach(board=>{board.addEventListener('dragover',e=>{e.preventDefault();board.classList.add('drag-over');});board.addEventListener('dragleave',e=>{if(!board.contains(e.relatedTarget))board.classList.remove('drag-over');});board.addEventListener('drop',e=>{e.preventDefault();board.classList.remove('drag-over');const id=e.dataTransfer.getData('text/plain');const t=state.tasks.find(x=>x.id===id);if(t&&t.client_name!==board.dataset.client)saveTaskField(id,{client_name:board.dataset.client},'نُقلت المهمة إلى '+board.dataset.client);});
+      const grip=board.querySelector('.resize-handle');grip?.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();const x=e.clientX,start=board.getBoundingClientRect().width,name=board.dataset.client;grip.setPointerCapture(e.pointerId);const move=ev=>{const delta=(document.documentElement.dir==='rtl'?-1:1)*(ev.clientX-x);const width=Math.min(620,Math.max(260,start+delta));board.style.setProperty('--column-width',width+'px');};const up=()=>{state.widths[name]=Math.round(board.getBoundingClientRect().width);localStorage.setItem('talabati-board-widths',JSON.stringify(state.widths));grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',up);};grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',up);});
+    });
   }
   function closeFileUrl(){if(state.fileUrl){URL.revokeObjectURL(state.fileUrl);state.fileUrl=null;}}
   async function openDetail(id){
