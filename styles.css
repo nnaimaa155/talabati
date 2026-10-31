@@ -263,3 +263,25 @@ html,body{max-width:100%;overflow-x:hidden}
 .v9-dashboard .notes-section .notes-autosave-status{font-size:15px!important}
 @media(max-width:700px){.v9-dashboard .kanban-surface{padding:10px!important}.v9-dashboard .kanban-surface #task-list.client-grid>.client-board{flex-basis:var(--column-width,320px)!important;width:var(--column-width,320px)!important;min-width:280px!important}.v9-dashboard .mini-title{font-size:18px!important}.v9-dashboard .mini-date{font-size:15px!important}.v9-dashboard .report-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media print{.v9-dashboard .report-metrics{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+
+/* V9.4: board horizontal controls and independently adjustable task typography */
+.font-controls{display:inline-flex;align-items:center;gap:3px;direction:ltr;background:#fff;border:1px solid #dfd5e6;border-radius:12px;padding:4px;flex-shrink:0}
+.font-controls button{border:0;background:transparent;border-radius:8px;color:#4d315e;min-width:41px;min-height:39px;padding:4px 7px;font-weight:800;font-size:17px;cursor:pointer}
+.font-controls button:hover,.font-controls button:focus-visible{background:#eee5f3;outline-offset:1px}
+.v9-dashboard .kanban-surface #task-list.client-grid{cursor:grab;overscroll-behavior-x:contain;scroll-behavior:auto}
+.v9-dashboard .kanban-surface #task-list.client-grid.panning{cursor:grabbing!important;user-select:none!important;scroll-snap-type:none!important}
+.v9-dashboard .client-heading{cursor:grab}
+.v9-dashboard #task-list.panning .client-heading{cursor:grabbing}
+.v9-dashboard .client-heading h3{font-size:calc(22px * var(--task-font-scale,1))!important}
+.v9-dashboard .client-heading span{font-size:calc(16px * var(--task-font-scale,1))!important}
+.v9-dashboard .mini-title{font-size:calc(19px * var(--task-font-scale,1))!important}
+.v9-dashboard .mini-date,.v9-dashboard .due-caption{font-size:calc(16px * var(--task-font-scale,1))!important}
+.v9-dashboard .time-rating .stars{font-size:calc(22px * var(--task-font-scale,1))!important}
+.v9-dashboard .detail-sheet .detail-section h3,.v9-dashboard .notes-section label{font-size:calc(19px * var(--task-font-scale,1))!important}
+.v9-dashboard .detail-sheet .detail-section p,.v9-dashboard .notes-section textarea{font-size:calc(18px * var(--task-font-scale,1))!important}
+.v9-dashboard .details-meta,.v9-dashboard .notes-autosave-status{font-size:calc(15px * var(--task-font-scale,1))!important}
+@media(max-width:700px){.font-controls button{min-width:36px}.v9-dashboard .mini-title{font-size:calc(18px * var(--task-font-scale,1))!important}}
+@media print{.font-controls{display:none!important}}
+
+/* V9.5: unmistakable leaf icon for normal urgency, not a status dot */
+.urgency-symbol.normal svg{display:block;width:23px;height:23px;stroke:#15834b;stroke-width:2.3;fill:rgba(34,197,94,.12);flex-shrink:0}
