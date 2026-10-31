@@ -233,3 +233,33 @@ body{background:#fff;color:#211829;font-weight:500}
 @media(max-width:700px){.client-grid{flex-wrap:nowrap!important;overflow-x:auto!important}.client-board{flex:0 0 var(--column-width,320px)!important;width:var(--column-width,320px)!important;min-width:260px!important}.mini-title{font-size:17px!important}.mini-date{font-size:14px!important}.report-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.report-donut{width:80px;height:80px}.report-donut:before{inset:9px}.report-donut strong{font-size:18px}.stat-label{font-size:14px!important}}
 @media print{.report-metric{break-inside:avoid}.report-metrics{grid-template-columns:repeat(4,1fr)!important}.report-donut{width:74px;height:74px}.report-donut:before{inset:9px}.report-donut strong{font-size:16px}.report-metric-label{font-size:12px}.report-close{display:none!important}}
 .client-grid.panning{cursor:grabbing;scroll-snap-type:none;user-select:none}
+
+/* V9.2: enforce exactly one horizontal lane for client boards */
+.v9-dashboard .kanban-surface{min-width:0;max-width:100%;overflow:hidden}
+.v9-dashboard .kanban-surface > .client-grid{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;grid-template-columns:none!important;justify-content:flex-start!important;align-items:flex-start!important;width:100%!important;max-width:100%!important;overflow-x:auto!important;overflow-y:hidden!important;direction:rtl;-webkit-overflow-scrolling:touch}
+.v9-dashboard .kanban-surface > .client-grid > .client-board{flex:0 0 var(--column-width,320px)!important;width:var(--column-width,320px)!important;min-width:260px!important;max-width:none!important}
+.v9-dashboard .kanban-surface > .client-grid > .empty-state{flex:1 0 100%}
+
+/* V9.3 audited: final high-specificity desktop/mobile layout rules */
+html,body{max-width:100%;overflow-x:hidden}
+.v9-dashboard{font-size:18px!important}
+.v9-dashboard .kanban-surface{display:block!important;min-width:0!important;width:100%!important;overflow:hidden!important;padding:18px!important}
+.v9-dashboard .kanban-surface #task-list.client-grid{display:flex!important;flex-flow:row nowrap!important;flex-wrap:nowrap!important;align-items:flex-start!important;justify-content:flex-start!important;gap:18px!important;width:100%!important;max-width:100%!important;min-width:0!important;overflow-x:scroll!important;overflow-y:hidden!important;scrollbar-gutter:stable;direction:rtl;scroll-snap-type:none!important;padding:8px 8px 22px!important;touch-action:pan-x pan-y}
+.v9-dashboard .kanban-surface #task-list.client-grid>.client-board{display:block!important;box-sizing:border-box!important;flex-grow:0!important;flex-shrink:0!important;flex-basis:var(--column-width,380px)!important;width:var(--column-width,380px)!important;min-width:300px!important;max-width:620px!important;margin:0!important;scroll-snap-align:none!important}
+.client-heading h3{font-size:22px!important}.client-heading span{font-size:16px!important}
+.v9-dashboard .mini-title{font-size:19px!important;line-height:1.5!important;font-weight:800!important}
+.v9-dashboard .mini-date,.v9-dashboard .due-caption{font-size:16px!important;line-height:1.5!important}
+.v9-dashboard .time-rating .stars{font-size:22px!important}
+.v9-dashboard .detail-sheet .detail-section h3,.v9-dashboard .notes-section label{font-size:19px!important}
+.v9-dashboard .detail-sheet .detail-section p,.v9-dashboard .notes-section textarea{font-size:18px!important}
+.compact-flag.soon{display:inline-flex!important;align-items:center;justify-content:center;vertical-align:middle;width:36px!important;height:36px!important;padding:5px!important;background:#fff0d5!important;color:#b36a10!important}
+.compact-flag.soon svg{width:26px;height:26px;stroke-width:2.25}
+.mini-title .progress-play{display:inline-flex;vertical-align:middle;margin-inline:5px;min-width:31px;min-height:31px}
+.v9-dashboard .report-toggle,.v9-dashboard .report-close{cursor:pointer}
+.v9-dashboard .report-metrics{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(175px,1fr))!important;gap:14px!important}
+.v9-dashboard .report-metric{background:#fff!important;text-align:center}
+.v9-dashboard .report-title p{font-size:16px!important}
+.v9-dashboard .client-total{font-size:17px!important}
+.v9-dashboard .notes-section .notes-autosave-status{font-size:15px!important}
+@media(max-width:700px){.v9-dashboard .kanban-surface{padding:10px!important}.v9-dashboard .kanban-surface #task-list.client-grid>.client-board{flex-basis:var(--column-width,320px)!important;width:var(--column-width,320px)!important;min-width:280px!important}.v9-dashboard .mini-title{font-size:18px!important}.v9-dashboard .mini-date{font-size:15px!important}.v9-dashboard .report-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media print{.v9-dashboard .report-metrics{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
