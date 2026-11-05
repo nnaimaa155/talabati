@@ -12,7 +12,7 @@
   const STATUSES = { new:'جديد', progress:'قيد التنفيذ', done:'مكتمل' };
   const PRIORITIES = { low:'منخفض', medium:'متوسط', high:'عالي' };
   const FORMAT_NAMES = { post:'بوست', story:'ستوري' };
-  const state = { authorized:!hasConfig, filter:'open', sort:'priority', search:'', tasks:[], loading:false, sending:false, sent:false, uploadWarning:false, fileUrl:null, expandedId:null, boardMode:localStorage.getItem('talabati-board-mode')==='white'?'white':'dark', reportOpen:false, reportPeriod:'week', reportFrom:'', reportTo:'', fontScale:(()=>{const value=Number(localStorage.getItem('talabati-font-scale'));return Number.isFinite(value)&&value>0?value:1})(), widths:(()=>{try{return JSON.parse(localStorage.getItem('talabati-board-widths')||'{}')||{}}catch{return {}}})() };
+  const state = { authorized:!hasConfig, filter:'open', sort:'priority', search:'', tasks:[], loading:false, sending:false, sent:false, uploadWarning:false, fileUrl:null, expandedId:null, boardMode:localStorage.getItem('talabati-board-mode')==='white'?'white':'dark', reportOpen:false, reportPeriod:'week', reportFrom:'', reportTo:'', exportClient:'all', exportPeriod:'all', exportFrom:'', exportTo:'', boardSpacing:(()=>{try{const v=JSON.parse(localStorage.getItem('talabati-board-spacing')||'{}');return {right:Number.isFinite(v.right)?Math.max(0,Math.min(160,v.right)):36,left:Number.isFinite(v.left)?Math.max(0,Math.min(160,v.left)):36};}catch{return {right:36,left:36};}})(), fontScale:(()=>{const value=Number(localStorage.getItem('talabati-font-scale'));return Number.isFinite(value)&&value>0?value:1})(), widths:(()=>{try{return JSON.parse(localStorage.getItem('talabati-board-widths')||'{}')||{}}catch{return {}}})() };
 
   function todayISO(offset=0) {
     const d = new Date(); d.setDate(d.getDate()+offset);
@@ -60,11 +60,12 @@
   function successTemplate(){return `<section class="success-panel panel"><div class="success-ring">✓</div><h1>تم استلام طلبك</h1><p>وصل الطلب إلى القائمة بنجاح.${state.uploadWarning?' لكن تعذر حفظ المرفق؛ أرسله للمصمم بطريقة أخرى.':''}</p><button class="primary-btn" id="new-request">إرسال طلب آخر</button></section>`;}
   function loginTemplate(){return `<section class="login-panel panel"><span class="eyebrow">خاصة بالمصمم</span><h1>الدخول للوحة المهام</h1><p>سجل دخولك عشان تشوف طلبات الجهات.</p><form id="login-form"><div class="field"><label for="email">البريد الإلكتروني</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label for="password">كلمة المرور</label><input id="password" type="password" minlength="6" autocomplete="current-password" required></div><button class="primary-btn" id="login-btn" type="submit">دخول</button></form></section>`;}
   function filteredTasks(){const q=state.search.trim().toLocaleLowerCase();return state.tasks.filter(t=>state.filter==='all'||(state.filter==='open'?t.status!=='done':state.filter==='urgent'?isUrgent(t):state.filter==='critical'?t.status!=='done'&&t.urgency==='critical':state.filter==='soon'?isOverdue(t)||dueSoon(t):t.status===state.filter)).filter(t=>!q||[t.client_name,t.title,t.details,TYPES[t.type]].some(x=>String(x||'').toLocaleLowerCase().includes(q))).sort((a,b)=>{if(state.sort==='priority'){const p=priorityWeight(b)-priorityWeight(a);if(p)return p;}if(state.sort==='deadline'){const delta=(a.due_date||'9999').localeCompare(b.due_date||'9999');if(delta)return delta;}return new Date(b.created_at)-new Date(a.created_at);});}
+  function clientKey(value){return String(value||'بدون اسم').trim().replace(/\s+/g,' ').normalize('NFKC').replace(/[\u064B-\u065F\u0670\u0640]/g,'').replace(/[إأآ]/g,'ا').toLocaleLowerCase('ar');}
   function groupTasks(tasks){
     const groups=new Map();
     for(const task of tasks){
       const name=String(task.client_name||'بدون اسم').trim().replace(/\s+/g,' ');
-      const key=name.normalize('NFKC').replace(/[\u064B-\u065F\u0670\u0640]/g,'').replace(/[إأآ]/g,'ا').toLocaleLowerCase('ar');
+      const key=clientKey(name);
       if(!groups.has(key))groups.set(key,{name,tasks:[]});
       groups.get(key).tasks.push(task);
     }
@@ -120,16 +121,86 @@
     const to=state.reportPeriod==='custom'&&state.reportTo?new Date(state.reportTo+'T23:59:59'):now;
     return state.tasks.filter(t=>{const created=new Date(t.created_at);return created>=from&&created<=to;});
   }
+  function exportRange(){
+    const now=new Date();now.setHours(23,59,59,999);
+    if(state.exportPeriod==='week'){const from=new Date();from.setHours(0,0,0,0);from.setDate(from.getDate()-6);return {from,to:now};}
+    if(state.exportPeriod==='month'){const from=new Date();from.setHours(0,0,0,0);from.setDate(from.getDate()-29);return {from,to:now};}
+    if(state.exportPeriod==='custom'){
+      const from=state.exportFrom?new Date(state.exportFrom+'T00:00:00'):new Date('2000-01-01T00:00:00');
+      const to=state.exportTo?new Date(state.exportTo+'T23:59:59'):now;
+      return {from,to};
+    }
+    return {from:new Date('2000-01-01T00:00:00'),to:now};
+  }
+  function selectedExportTasks(){
+    const {from,to}=exportRange();
+    return state.tasks.filter(t=>{
+      const created=new Date(t.created_at||'');
+      const inRange=Number.isFinite(+created)&&created>=from&&created<=to;
+      const inClient=state.exportClient==='all'||clientKey(t.client_name)===clientKey(state.exportClient);
+      return inRange&&inClient;
+    });
+  }
+  function ratingScore(t){
+    if(t.status!=='done'||!t.completed_at)return null;
+    const created=Date.parse(t.created_at||''),completed=Date.parse(t.completed_at);
+    if(!Number.isFinite(created)||!Number.isFinite(completed))return null;
+    const days=workDays(t.created_at,t.completed_at);
+    if(t.due_date){const due=Date.parse(t.due_date+'T23:59:59');const late=completed<=due?0:workDays(t.due_date+'T00:00:00',t.completed_at);return late<=0?5:late<=1?4:late<=2?3:late<=4?2:1;}
+    return days<=1?5:days<=2?4:days<=4?3:days<=7?2:1;
+  }
+  function excelText(value){
+    const text=String(value??'');
+    return /^[=+@\-\t\r]/.test(text)?`'${text}`:text;
+  }
+  function excelDate(value){
+    if(!value)return '';
+    const d=new Date(String(value).length===10?`${value}T12:00:00`:value);
+    if(!Number.isFinite(+d))return '';
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function exportTasksToExcel(){
+    if(!window.XLSX){toast('مكتبة Excel لم تُحمّل. حدّث الصفحة ثم جرّب مرة أخرى.');return;}
+    const {from,to}=exportRange();
+    if(from>to){toast('تاريخ البداية يجب أن يسبق تاريخ النهاية.');return;}
+    const tasks=selectedExportTasks();
+    if(!tasks.length){toast('لا توجد مهام مطابقة لاختيارات التصدير.');return;}
+    const headers=['رقم الطلب','الجهة / العميل','عنوان المهمة','نوع العمل','المقاسات / الصيغ','تفاصيل الطلب التي أدخلها العميل','تاريخ إضافة الطلب','موعد التسليم','تاريخ الإنجاز','الحالة','الأهمية المطلوبة','الأولوية الداخلية','التقييم من 5','مدة التنفيذ (أيام عمل، الجمعة مستثناة)','ملاحظاتي الخاصة (داخلية)','اسم المرفق','مسار المرفق','بيانات التواصل'];
+    const rows=tasks.map(t=>[
+      excelText(t.id),excelText(t.client_name),excelText(t.title),excelText(TYPES[t.type]||t.type||''),excelText(safeFormatList(t).join(' + ')),excelText(t.details),excelDate(t.created_at),excelDate(t.due_date),excelDate(t.completed_at),excelText(STATUSES[t.status]||t.status||''),excelText(({normal:'عادي',urgent:'مستعجل',critical:'بالغ الأهمية'})[t.urgency]||t.urgency||''),excelText(({low:'منخفض',medium:'متوسط',high:'عالٍ'})[t.priority]||t.priority||''),ratingScore(t)??'',t.status==='done'&&t.completed_at?workDays(t.created_at,t.completed_at):'',excelText(t.internal_notes||''),excelText(t.reference_name||''),excelText(t.reference_path||''),excelText(t.contact||'')
+    ]);
+    const XLSX=window.XLSX,wb=XLSX.utils.book_new();
+    const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
+    ws['!cols']=[{wch:24},{wch:22},{wch:34},{wch:20},{wch:20},{wch:58},{wch:16},{wch:16},{wch:16},{wch:15},{wch:18},{wch:17},{wch:13},{wch:28},{wch:55},{wch:28},{wch:42},{wch:24}];
+    ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:headers.length-1}})};
+    ws['!freeze']={xSplit:0,ySplit:1,topLeftCell:'A2',activePane:'bottomLeft',state:'frozen'};
+    XLSX.utils.book_append_sheet(wb,ws,'المهام');
+    const clientName=state.exportClient==='all'?'جميع الجهات':state.exportClient;
+    const summary=[['تقرير طلباتي'],['الجهة',excelText(clientName)],['الفترة',state.exportPeriod==='all'?'كل الفترة':state.exportPeriod==='week'?'آخر 7 أيام':state.exportPeriod==='month'?'آخر 30 يومًا':'تاريخ مخصص'],['من',state.exportPeriod==='all'?'':excelDate(from)],['إلى',state.exportPeriod==='all'?'':excelDate(to)],['عدد المهام',tasks.length],['المهام المنجزة',tasks.filter(t=>t.status==='done').length],['المهام غير المنجزة',tasks.filter(t=>t.status!=='done').length],['تاريخ إنشاء التقرير',excelDate(new Date().toISOString())],['تنبيه','يتضمن الملف عمود ملاحظاتي الخاصة (داخلية). راجعه قبل مشاركته مع العميل.']];
+    const summarySheet=XLSX.utils.aoa_to_sheet(summary);summarySheet['!cols']=[{wch:28},{wch:72}];XLSX.utils.book_append_sheet(wb,summarySheet,'ملخص');
+    const dateStamp=excelDate(new Date().toISOString());
+    XLSX.writeFile(wb,`Talabati_Tasks_${dateStamp}.xlsx`,{compression:true});
+    toast(`تم تجهيز ملف Excel ويحتوي على ${tasks.length} مهمة.`);
+  }
   function reportMarkup(){const tasks=reportTasks(),completed=tasks.filter(x=>x.status==='done'&&x.completed_at),durations=completed.map(x=>workDays(x.created_at,x.completed_at));const mean=durations.length?(durations.reduce((a,b)=>a+b,0)/durations.length).toFixed(1):'—';const ontime=completed.filter(t=>!t.due_date||new Date(t.completed_at)<=new Date(t.due_date+'T23:59:59')).length;const overdue=tasks.filter(isOverdue).length;
     const clients=groupTasks(tasks).sort((a,b)=>b.tasks.length-a.tasks.length);
-    return `<section class="report-panel" id="report-panel"><div class="report-title"><div><h2>تقرير أداء طلباتي</h2><p>المهام التي أُضيفت خلال الفترة المحددة، والتقييم يستثني أيام الجمعة</p></div><div class="report-title-actions"><button type="button" id="close-report" class="plain-btn report-close" aria-label="طي التقرير وإخفائه" title="طي التقرير وإخفائه">⌃</button><button type="button" id="print-report" class="plain-btn">${svgIcon('print')} طباعة</button></div></div><div class="report-controls"><select id="report-period"><option value="week" ${state.reportPeriod==='week'?'selected':''}>آخر 7 أيام</option><option value="month" ${state.reportPeriod==='month'?'selected':''}>آخر 30 يومًا</option><option value="custom" ${state.reportPeriod==='custom'?'selected':''}>تاريخ مخصص</option></select>${state.reportPeriod==='custom'?`<label>من <input type="date" id="report-from" value="${esc(state.reportFrom)}"></label><label>إلى <input type="date" id="report-to" value="${esc(state.reportTo)}"></label>`:''}</div><div class="report-metrics">${[['عدد المهام',tasks.length,100,'#78539b'],['عدد الجهات',clients.length,100,'#72549d'],['المنجزة',completed.length,tasks.length?completed.length/tasks.length*100:0,'#24a370'],['نسبة الإنجاز',tasks.length?Math.round(completed.length/tasks.length*100)+'%':'0%',tasks.length?completed.length/tasks.length*100:0,'#24a370'],['متوسط أيام العمل',mean,completed.length?Math.min(100,100/(1+Number(mean)||1)*3):0,'#965abd'],['أُنجزت في الموعد',completed.length?Math.round(ontime/completed.length*100)+'%':'—',completed.length?ontime/completed.length*100:0,'#268e9e'],['متأخرة حاليًا',overdue,tasks.length?overdue/tasks.length*100:0,'#d55256']].map(([k,v,pct,color])=>`<div class="report-metric"><span class="report-donut" style="--metric-progress:${Math.min(100,Math.max(0,pct))}%;--metric-color:${color}"><strong>${v}</strong></span><span class="report-metric-label">${k}</span></div>`).join('')}</div><h3>المهام حسب الجهة</h3><table class="report-table"><thead><tr><th>الجهة</th><th>العدد</th><th>المنجزة</th></tr></thead><tbody>${clients.map(g=>`<tr><td>${esc(g.name)}</td><td>${g.tasks.length}</td><td>${g.tasks.filter(t=>t.status==='done').length}</td></tr>`).join('')||'<tr><td colspan="3">لا توجد مهام في الفترة</td></tr>'}</tbody></table></section>`;
+    const allClients=groupTasks(state.tasks).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+    const exportCount=selectedExportTasks().length;
+    return `<section class="report-panel" id="report-panel"><div class="report-title"><div><h2>تقرير أداء طلباتي</h2><p>المهام التي أُضيفت خلال الفترة المحددة، والتقييم يستثني أيام الجمعة</p></div><div class="report-title-actions"><button type="button" id="close-report" class="plain-btn report-close" aria-label="طي التقرير وإخفائه" title="طي التقرير وإخفائه">⌃</button><button type="button" id="print-report" class="plain-btn">${svgIcon('print')} طباعة</button></div></div><div class="report-controls"><select id="report-period"><option value="week" ${state.reportPeriod==='week'?'selected':''}>آخر 7 أيام</option><option value="month" ${state.reportPeriod==='month'?'selected':''}>آخر 30 يومًا</option><option value="custom" ${state.reportPeriod==='custom'?'selected':''}>تاريخ مخصص</option></select>${state.reportPeriod==='custom'?`<label>من <input type="date" id="report-from" value="${esc(state.reportFrom)}"></label><label>إلى <input type="date" id="report-to" value="${esc(state.reportTo)}"></label>`:''}</div><div class="report-metrics">${[['عدد المهام',tasks.length,100,'#78539b'],['عدد الجهات',clients.length,100,'#72549d'],['المنجزة',completed.length,tasks.length?completed.length/tasks.length*100:0,'#24a370'],['نسبة الإنجاز',tasks.length?Math.round(completed.length/tasks.length*100)+'%':'0%',tasks.length?completed.length/tasks.length*100:0,'#24a370'],['متوسط أيام العمل',mean,completed.length?Math.min(100,100/(1+Number(mean)||1)*3):0,'#965abd'],['أُنجزت في الموعد',completed.length?Math.round(ontime/completed.length*100)+'%':'—',completed.length?ontime/completed.length*100:0,'#268e9e'],['متأخرة حاليًا',overdue,tasks.length?overdue/tasks.length*100:0,'#d55256']].map(([k,v,pct,color])=>`<div class="report-metric"><span class="report-donut" style="--metric-progress:${Math.min(100,Math.max(0,pct))}%;--metric-color:${color}"><strong>${v}</strong></span><span class="report-metric-label">${k}</span></div>`).join('')}</div><h3>المهام حسب الجهة</h3><table class="report-table"><thead><tr><th>الجهة</th><th>العدد</th><th>المنجزة</th></tr></thead><tbody>${clients.map(g=>`<tr><td>${esc(g.name)}</td><td>${g.tasks.length}</td><td>${g.tasks.filter(t=>t.status==='done').length}</td></tr>`).join('')||'<tr><td colspan="3">لا توجد مهام في الفترة</td></tr>'}</tbody></table>
+      <section class="export-panel"><div class="export-panel-heading"><div><h3>تصدير المهام إلى Excel</h3><p>اختر جهة واحدة أو جميع الجهات، ثم حدّد فترة الطلبات حسب تاريخ إضافتها.</p></div><span class="export-count">${exportCount} مهمة</span></div>
+        <div class="export-controls"><label>الجهة<select id="export-client"><option value="all" ${state.exportClient==='all'?'selected':''}>جميع الجهات</option>${allClients.map(g=>`<option value="${esc(g.name)}" ${state.exportClient===g.name?'selected':''}>${esc(g.name)}</option>`).join('')}</select></label>
+          <label>الفترة<select id="export-period"><option value="all" ${state.exportPeriod==='all'?'selected':''}>كل الفترة</option><option value="week" ${state.exportPeriod==='week'?'selected':''}>آخر 7 أيام</option><option value="month" ${state.exportPeriod==='month'?'selected':''}>آخر 30 يومًا</option><option value="custom" ${state.exportPeriod==='custom'?'selected':''}>تاريخ مخصص</option></select></label>
+          ${state.exportPeriod==='custom'?`<label>من <input type="date" id="export-from" value="${esc(state.exportFrom)}"></label><label>إلى <input type="date" id="export-to" value="${esc(state.exportTo)}"></label>`:''}
+          <button type="button" id="export-xlsx" class="primary-btn">${svgIcon('report')} تصدير ملف Excel</button>
+        </div><p class="export-warning">تنبيه: يتضمن الملف عمود «ملاحظاتي الخاصة (داخلية)». راجعه قبل إرسال الملف للعميل.</p>
+      </section></section>`;
   }
   function dashboardTemplate(){const pending=state.tasks.filter(t=>t.status!=='done'),total=state.tasks.length;const groups=groupTasks(filteredTasks());return `<section class="dashboard v9-dashboard" style="--task-font-scale:${state.fontScale}"><div class="dashboard-head"><div><span class="eyebrow">لوحة تحكم خاصة</span><h1>مهامي</h1><p>كل جهة لها قائمتها، والمهام تنفتح تحتها مباشرة.</p></div><div class="dashboard-actions"><button class="plain-btn" id="refresh" type="button">↻ تحديث</button>${connected?'<button class="plain-btn" id="logout" type="button">خروج</button>':''}<a class="primary-btn" href="#request">+ طلب جديد</a></div></div>
     <div class="v9-stats"><div class="v9-stat-grid">${circleStat('مستعجل',pending.filter(t=>t.urgency==='urgent').length,'#e45047','urgent','⚡',total)}${circleStat('بالغ الأهمية',pending.filter(t=>t.urgency==='critical').length,'#8653ad','critical','🚩',total)}${circleStat('منجزة',state.tasks.filter(t=>t.status==='done').length,'#25a772','done','✓',total)}${circleStat('تسليم قريب',pending.filter(t=>dueSoon(t)||isOverdue(t)).length,'#e49b2b','soon','◷',total)}</div><button type="button" id="toggle-report" aria-expanded="${state.reportOpen}" class="report-toggle">${svgIcon('report')} التقارير</button></div>
     <p class="stats-hint">تسليم قريب يشمل المهام المتأخرة والمهام المستحقة خلال يومين. كل نسبة من إجمالي ${total} مهمة.</p>
     ${state.reportOpen?reportMarkup():''}
-    <div class="board-toolbar"><div class="filter-tabs"><span class="client-total" title="عدد الجهات في القائمة">الجهات: ${groupTasks(state.tasks).length}</span>${[['open','المفتوحة'],['all','الكل'],['progress','قيد التنفيذ'],['done','المنجزة']].map(([key,label])=>`<button class="filter-tab ${state.filter===key?'active':''}" type="button" data-filter="${key}">${label}</button>`).join('')}</div><div class="board-inputs"><div class="font-controls" role="group" aria-label="حجم خط المهام"><button type="button" id="font-plus" title="تكبير خط المهام" aria-label="تكبير خط المهام">A+</button><button type="button" id="font-reset" title="الحجم الأصلي" aria-label="إعادة حجم الخط">A</button><button type="button" id="font-minus" title="تصغير خط المهام" aria-label="تصغير خط المهام">A−</button></div><button type="button" class="mode-toggle" id="board-mode" title="تغيير خلفية البورد" aria-label="تبديل خلفية البورد">${svgIcon(state.boardMode==='dark'?'sun':'moon')} ${state.boardMode==='dark'?'White':'Dark'}</button><input aria-label="بحث" id="search" placeholder="ابحث عن جهة أو مهمة" value="${esc(state.search)}"><select aria-label="ترتيب المهام" id="sort"><option value="priority" ${state.sort==='priority'?'selected':''}>الأولوية أولاً</option><option value="deadline" ${state.sort==='deadline'?'selected':''}>أقرب تسليم</option><option value="newest" ${state.sort==='newest'?'selected':''}>الأحدث أولاً</option></select></div></div>
-    <div class="kanban-surface ${state.boardMode==='white'?'board-white':'board-dark'}"><div class="client-grid" id="task-list">${state.loading?'<div class="empty-state">جارٍ التحميل...</div>':groups.length?groups.map(groupCard).join(''):'<div class="empty-state">لا توجد مهام في هذا القسم</div>'}</div></div></section>`;}
+    <div class="board-toolbar"><div class="filter-tabs"><span class="client-total" title="عدد الجهات في القائمة">الجهات: ${groupTasks(state.tasks).length}</span>${[['open','المفتوحة'],['all','الكل'],['progress','قيد التنفيذ'],['done','المنجزة']].map(([key,label])=>`<button class="filter-tab ${state.filter===key?'active':''}" type="button" data-filter="${key}">${label}</button>`).join('')}</div><div class="board-inputs"><details class="spacing-controls"><summary>المسافات</summary><div class="spacing-popover"><label for="board-right-space">يمين <output id="board-right-value">${state.boardSpacing.right}px</output><input type="range" id="board-right-space" min="0" max="160" step="4" value="${state.boardSpacing.right}"></label><label for="board-left-space">يسار <output id="board-left-value">${state.boardSpacing.left}px</output><input type="range" id="board-left-space" min="0" max="160" step="4" value="${state.boardSpacing.left}"></label></div></details><div class="font-controls" role="group" aria-label="حجم خط المهام"><button type="button" id="font-plus" title="تكبير خط المهام" aria-label="تكبير خط المهام">A+</button><button type="button" id="font-reset" title="الحجم الأصلي" aria-label="إعادة حجم الخط">A</button><button type="button" id="font-minus" title="تصغير خط المهام" aria-label="تصغير خط المهام">A−</button></div><button type="button" class="mode-toggle" id="board-mode" title="تغيير خلفية البورد" aria-label="تبديل خلفية البورد">${svgIcon(state.boardMode==='dark'?'sun':'moon')} ${state.boardMode==='dark'?'White':'Dark'}</button><input aria-label="بحث" id="search" placeholder="ابحث عن جهة أو مهمة" value="${esc(state.search)}"><select aria-label="ترتيب المهام" id="sort"><option value="priority" ${state.sort==='priority'?'selected':''}>الأولوية أولاً</option><option value="deadline" ${state.sort==='deadline'?'selected':''}>أقرب تسليم</option><option value="newest" ${state.sort==='newest'?'selected':''}>الأحدث أولاً</option></select></div></div>
+    <div class="kanban-surface ${state.boardMode==='white'?'board-white':'board-dark'}" style="--board-right-space:${state.boardSpacing.right}px;--board-left-space:${state.boardSpacing.left}px"><div class="client-grid" id="task-list">${state.loading?'<div class="empty-state">جارٍ التحميل...</div>':groups.length?groups.map(groupCard).join(''):'<div class="empty-state">لا توجد مهام في هذا القسم</div>'}</div></div></section>`;}
   function detailTemplate(t){
     const formats=safeFormatList(t);const done=t.status==='done';
     return `<div class="detail-sheet">
@@ -171,12 +242,23 @@
     document.getElementById('report-period')?.addEventListener('change',e=>{state.reportPeriod=e.target.value;render();});
     document.getElementById('report-from')?.addEventListener('change',e=>{state.reportFrom=e.target.value;render();});
     document.getElementById('report-to')?.addEventListener('change',e=>{state.reportTo=e.target.value;render();});
+    document.getElementById('export-client')?.addEventListener('change',e=>{state.exportClient=e.target.value;render();});
+    document.getElementById('export-period')?.addEventListener('change',e=>{state.exportPeriod=e.target.value;render();});
+    document.getElementById('export-from')?.addEventListener('change',e=>{state.exportFrom=e.target.value;render();});
+    document.getElementById('export-to')?.addEventListener('change',e=>{state.exportTo=e.target.value;render();});
+    document.getElementById('export-xlsx')?.addEventListener('click',exportTasksToExcel);
     document.getElementById('print-report')?.addEventListener('click',()=>window.print());
+    [['board-right-space','right','board-right-value'],['board-left-space','left','board-left-value']].forEach(([id,side,outId])=>document.getElementById(id)?.addEventListener('input',e=>{
+      state.boardSpacing[side]=Number(e.target.value);const value=document.getElementById(outId);if(value)value.textContent=e.target.value+'px';
+      const surface=document.querySelector('.kanban-surface');surface?.style.setProperty(`--board-${side}-space`,e.target.value+'px');
+      localStorage.setItem('talabati-board-spacing',JSON.stringify(state.boardSpacing));
+    }));
     document.getElementById('logout')?.addEventListener('click',async()=>{await db.auth.signOut();state.authorized=false;state.tasks=[];render();});
     bindTaskButtons();bindBoardMovement();
     const strip=document.getElementById('task-list');
-    // Vertical mouse-wheel scrolls the horizontal lane; text fields keep natural behavior.
-    strip?.addEventListener('wheel',e=>{if(strip.scrollWidth<=strip.clientWidth+2)return;if(e.target.closest('textarea,input,select,[contenteditable="true"]'))return;const delta=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;if(!delta)return;e.preventDefault();strip.scrollLeft+=delta;},{passive:false});
+    // Keep the browser's normal vertical wheel behavior so the page scrolls even
+    // when the pointer is over the horizontal client board. Trackpad horizontal
+    // gestures still use the native overflow-x scrolling of the strip.
     // Allow click-and-drag panning from the board background AND client headings.
     // Task cards still use native drag/drop to move between clients.
     let pan=null;

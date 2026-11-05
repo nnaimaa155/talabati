@@ -293,3 +293,50 @@ html,body{max-width:100%;overflow-x:hidden}
   .v9-dashboard .kanban-surface{padding:18px 16px 18px!important;}
   .v9-dashboard .kanban-surface #task-list.client-grid{padding:6px 12px 20px!important;scroll-padding-inline:12px;}
 }
+
+
+/* V9.8: adjustable side gutters, natural vertical page scrolling, Excel export */
+.v9-dashboard .kanban-surface{
+  padding-top:34px!important;
+  padding-right:var(--board-right-space,36px)!important;
+  padding-bottom:26px!important;
+  padding-left:var(--board-left-space,36px)!important;
+}
+.v9-dashboard .kanban-surface #task-list.client-grid{
+  padding:6px 0 24px!important;
+  scroll-padding-inline:0!important;
+  overscroll-behavior-y:auto!important;
+}
+.spacing-controls{position:relative;z-index:5;flex:0 0 auto}
+.spacing-controls>summary{list-style:none;display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 12px;border:1px solid #dfd5e6;border-radius:10px;background:#fff;color:#573568;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap}
+.spacing-controls>summary::-webkit-details-marker{display:none}
+.spacing-controls>summary:after{content:"⌄";margin-inline-start:8px;font-size:15px}
+.spacing-controls[open]>summary{background:#f7f1fa;border-color:#c8a9d8}
+.spacing-popover{position:absolute;top:calc(100% + 8px);inset-inline-end:0;width:min(280px,calc(100vw - 36px));padding:15px;background:#fff;border:1px solid #e4d9ea;border-radius:14px;box-shadow:0 10px 30px rgba(44,25,54,.14);display:grid;gap:13px}
+.spacing-popover label{display:grid;grid-template-columns:1fr auto;align-items:center;gap:7px;color:#4e3b59;font-size:13px;font-weight:800}
+.spacing-popover output{color:#8a6a99;font-size:12px;font-variant-numeric:tabular-nums}
+.spacing-popover input[type=range]{grid-column:1/-1;width:100%;accent-color:#75458d;cursor:ew-resize}
+.export-panel{margin-top:28px;padding:20px;border:1px solid #e5dbea;border-radius:17px;background:#fcfaff}
+.export-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px}
+.export-panel-heading h3{font-size:20px;color:#35243e;margin:0 0 4px}
+.export-panel-heading p{font-size:14px;color:#796d80}
+.export-count{flex:0 0 auto;padding:7px 12px;border-radius:30px;background:#efe5f5;color:#59366b;font-size:14px;font-weight:800}
+.export-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap}
+.export-controls label{display:flex;flex-direction:column;gap:6px;min-width:150px;color:#55445f;font-size:13px;font-weight:800}
+.export-controls select,.export-controls input{min-height:43px;border:1px solid #ded2e5;border-radius:10px;background:#fff;color:#3f3347;padding:8px 11px;min-width:160px}
+.export-controls .primary-btn{min-height:43px}
+.export-warning{margin-top:13px;padding:10px 12px;border-radius:9px;background:#fff5e7;color:#8b5c1d;font-size:13px;line-height:1.7}
+@media(max-width:700px){
+  .v9-dashboard .kanban-surface{padding-top:18px!important;padding-bottom:18px!important}
+  .spacing-popover{inset-inline-end:auto;inset-inline-start:0}
+  .export-panel{padding:14px;margin-top:20px}
+  .export-panel-heading{align-items:flex-start}
+  .export-controls{display:grid;grid-template-columns:1fr 1fr}
+  .export-controls label{min-width:0}
+  .export-controls label select,.export-controls label input{min-width:0;width:100%}
+  .export-controls .primary-btn{grid-column:1/-1;width:100%}
+}
+@media print{
+  .export-panel,.spacing-controls{display:none!important}
+  .v9-dashboard .kanban-surface{padding:12px!important}
+}
